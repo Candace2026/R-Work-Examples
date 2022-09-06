@@ -1,0 +1,111 @@
+---
+title: "Recipients of Large Paycheck Protection Plan (PPP) Loans by State"
+author: "Candace Williams"
+date: "August 9, 2022"
+output:
+  html_document: default
+  word_document: default
+  pdf_document: default
+subtitle: Businesses in which state could require the most aid in the event of a future
+  pandemic?
+---
+When the coronavirus formally identified as COVID-19 was officially declared a pandemic by the World Health Organization (WHO) on March 11, 2020, citizens across the globe saw the temporary closure of businesses by order of their respective governments in order to delay the spread of the deadly virus. This period, most commonly referred to as "quarantine", led to great economic strain for both businesses and employees alike. In this analysis, we will take a closer look at how the Paycheck Protection Program (PPP) under the Coronavirus Aid, Relief, and Economic Security (CARES) Act of 2020 was utilized during the economic strain that resulted from the COVID-19 pandemic. All data explored was derived from the [Small Business Association (SBA) PPP datasets](https://data.sba.gov/dataset/ppp-foia), which is the most legitimate source of this data as a directly related government entity.
+
+### What was the Payment Protection Program and Its Requirements?
+
+The Paycheck Protection Program was a $953 billion low-interest federal loan program for the purpose of providing economic relief to small business and other eligible business entities that were negatively impacted by the COVID-19 pandemic.
+
+The loan proceeds could be used to cover costs for payroll, rent, mortgage interest, debt interest, healthcare, utilities, and to refinance Emergency Injury Disaster Loans (EIDL). The loans could also be forgiven partially or fully if the business receiving the loan maintained its employee counts and employee wages.
+
+For this simply analysis, we will focus only on the total PPP loans granted based on the location of the recipients those recipients met.
+
+
+### Part 1: Data Cleaning Process
+
+Now that our dataset has been imported into our workspace, we will begin the data cleaning process.
+To begin, we will install the tidyverse, readr, dtplyr, and dplyr library packages.
+
+```{r cleaning package libraries, message=FALSE, warning=FALSE, include=FALSE, paged.print=FALSE}
+library(tidyverse)
+library(readr)
+library(dplyr)
+```
+
+
+
+Finally, we will import and view a portion of the data as a csv file using the readr function read_csv().
+
+```{r Import csv, message=FALSE, warning=FALSE, paged.print=FALSE}
+ppp_loans <- read_csv("ppp_loan_data_raw.csv")
+```
+
+
+We must isolate and delete the columns of data that are not relevant to our analysis. It is best to find these column names using the colnames() function.
+
+```{r column names, eval=FALSE, include=FALSE}
+colnames(ppp_loans)
+```
+
+
+Through the results of executing this function, we see that there is a number of columns containing details we do not need, such as "BorrowCity", "BorrowerAddress", "Franchise Name", and "NAICSCode." We want to only isolate data pertaining to the loans granted to the recipient (CurrentApprovalAmount), the states in which the recipients and lenders are based (BorrowerState and ServicingLenderState), and details concerning the business' classification (Rural Urban Indication, LMIIndicator, Hubzone, JobsReported, Veteran, and NonProfit).
+
+Therefore, we will use the select() function under the dplyr package to select and remove the unnecessary columns. From there, we can see our remaining columns via only the first six rows of the new dataframe as a tibble using the head() function. The new dataframe resulting from these columns being removed will be identified as ppp_cols.
+
+```{r remove irrelevant columns}
+ppp_cols <- select(ppp_loans, -1, -3:-7, -9:-14, -16:-21, -23, -27:-32, -34:-36, -37:-49, -52:-53)
+```
+
+
+We notice that we have quite a few NA values in the Nonprofit column. Because we cannot account for this data, we will remove these rows with the which() and is.na() functions and assign the NA values as "N" to indicate that these businesses are not nonprofits as they appear in the original .csv file. Using dplyr function glimpse, we will then see a short summary of the columns and their values, demonstrating that "NA" values has now been replaced by "N".
+
+```{r Nonprofit column- remove NA}
+ppp_cols$NonProfit[which(is.na(ppp_cols$NonProfit))] <- "N"
+```
+
+
+We have reached the final stretch! Now, we must completely remove the rows that containing NA values for the BorrowerState column. There is no reference as to what these values could be in the raw data, and we risk invalidating our data by guessing which 1 out of 50 states applies to each row.Therefore, we will finish cleaning our data using the na.omit() function to remove the corresponding rows and assign the cleaned data frame to variable ppp.
+
+```{r omit n/a values, message=FALSE, warning=FALSE, paged.print=FALSE}
+ppp <- na.omit(ppp_cols)
+```
+
+
+### Part 2: Data Visualization and Analysis
+
+Here, we will explore the total amount of PPP loans received in excess of $150,000 per state. In order to isolate and visualize these details, we will use the following code featuring functions from the ggplot2 and scales package.
+
+We will calculate the overall total PPP Loans received by state, in which columns BorrowerState and CurrentApprovalAmount will be represented. Then, we will visualize this data in a column chart using the ggplot() function so that we can determine the states with the highest and lowest totals received in PPP loans. We will see that the state with the most recipients of the largest PPP loans was the state of California.
+
+```{r ggplot + scales, echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+library(ggplot2)
+library(scales)
+state <- ppp %>%
+  group_by(BorrowerState) %>%
+  summarise(total = sum(CurrentApprovalAmount))
+st <- ggplot(state, aes(BorrowerState, total))
+st + geom_col(fill = "blue") + ylab("PPP Loan Amount") + xlab("State") + theme(axis.text.x = element_text(angle=90, vjust=0.0)) + ggtitle("Total PPP Loans Received By State") + scale_y_continuous(labels=comma)
+```
+
+Here, we can see that of all the states whose recipients received large PPP loans, the recipients in the states of New York, Texas, and California received the greatest sum totals overall. We can confirm the sum totals for each specific state using the with() function. For readability, we will format the sum as currency with the priceR libary function format_dollars().
+
+```{r sum + priceR, echo=FALSE}
+nyTotal <- with(ppp, sum(CurrentApprovalAmount[BorrowerState == 'NY']))
+txTotal <- with(ppp, sum(CurrentApprovalAmount[BorrowerState == 'TX']))
+caTotal <- with(ppp, sum(CurrentApprovalAmount[BorrowerState == 'CA']))
+
+library(priceR)
+NY <- format_dollars(nyTotal, 2)
+TX <- format_dollars(txTotal, 2)
+CA <- format_dollars(caTotal, 2)
+
+message('New York Borrowers Total: ', NY)
+message('Texas Borrowers Total: ', TX)
+message('California Borrowers Total: ', CA)
+```
+From these results, we can project that in the event of more mass closures similar to the COVID-19 pandemic, businesses in the states of New York, Texas, and California are the most likely states to require government loans greater than or equal to $150,000 per borrower.
+
+### Future Considerations
+
+1. What amount of emergency funds must be set aside in each state for economic protection against future disasters?
+2. Which business type managed to obtain loan forgiveness at a higher rate than all other business types, and why?
+3. Predictive analysis of which business types will require the most economic relief in the event of a future disaster.
